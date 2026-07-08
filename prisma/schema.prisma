@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Producto {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  metal     String
+  tipo      String
+  peso      String
+  pureza    String
+  precio    Float
+  imagen    String?
+  destacado Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PrecioMetal {
+  id        Int      @id @default(autoincrement())
+  metal     String
+  precio    Float
+  unidad    String   @default("oz")
+  updatedAt DateTime @updatedAt
+}
+model Articulo {
+  id          Int      @id @default(autoincrement())
+  titulo      String
+  resumen     String
+  contenido   String
+  categoria   String
+  imagen      String?
+  autor       String   @default("Equipo Aurum")
+  publicado   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Testimonio {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  ciudad    String
+  texto     String
+  estrellas Int      @default(5)
+  producto  String
+  publicado Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model FAQ {
+  id        Int      @id @default(autoincrement())
+  pregunta  String
+  respuesta String
+  orden     Int      @default(0)
+}
+
+model Mensaje {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String
+  asunto    String
+  mensaje   String
+  leido     Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  nombre    String
+  createdAt DateTime @default(now())
+}
+model Cliente {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  nombre    String
+  aprobado  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
