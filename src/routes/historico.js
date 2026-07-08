@@ -1,74 +1,57 @@
 const express = require('express')
 const router = express.Router()
 
-let cache = {}
+const cache = {}
 
 router.get('/', async (req, res) => {
   try {
-    const { metal = 'XAU', periodo = 'año' } = req.query
-
+    const { metal = 'XAU', periodo = 'mes' } = req.query
     const cacheKey = `${metal}-${periodo}`
     const ahora = Date.now()
 
-    if (cache[cacheKey] && ahora - cache[cacheKey].timestamp < 3600000) {
+    // Caché de 24 horas para no gastar el límite mensual
+    if (cache[cacheKey] && ahora - cache[cacheKey].timestamp < 24 * 60 * 60 * 1000) {
       return res.json(cache[cacheKey].datos)
     }
+
+    const apiKey = process.env.METALPRICE_API_KEY
 
     const hoy = new Date()
     let fechaInicio = new Date()
 
     if (periodo === 'mes') fechaInicio.setMonth(hoy.getMonth() - 1)
     else if (periodo === 'año') fechaInicio.setFullYear(hoy.getFullYear() - 1)
-    else if (periodo === '5años') fechaInicio.setFullYear(hoy.getFullYear() - 5)
+    else if (periodo === '5años') fechaInicio.setFullYear(hoy.getFullYear() - 1) // gratis máximo 365 días
 
-    const formatFecha = (d) => d.toISOString().split('T')[0]
+    const formato = (d) => d.toISOString().split('T')[0]
 
-    const res2 = await fetch(
-      `https://api.frankfurter.app/${formatFecha(fechaInicio)}..${formatFecha(hoy)}?from=USD&to=EUR`
-    )
-    const eurData = await res2.json()
-    const tasaEur = Object.values(eurData.rates).pop()?.EUR || 0.92
+    const url = `https://api.metalpriceapi.com/v1/timeframe?api_key=${apiKey}&start_date=${formato(fechaInicio)}&end_date=${formato(hoy)}&base=EUR&currencies=${metal}`
 
-    const resHistorico = await fetch(
-      `https://www.goldapi.io/api/${metal}/USD/${formatFecha(fechaInicio)}`,
-      {
-        headers: {
-          'x-access-token': process.env.GOLD_API_KEY,
-        },
-      }
-    )
+    const respuesta = await fetch(url)
+    const data = await respuesta.json()
 
-    const precioBase = await resHistorico.json()
-
-    const preciosActuales = {
-      XAU: 3200, XAG: 32, XPT: 1050, XPD: 1100,
+    if (!data.success || !data.rates) {
+      throw new Error(data.error?.info || 'Error al obtener histórico')
     }
 
-    const precioFin = preciosActuales[metal] || 3200
-    const precioIni = precioBase.price_previous_close || precioFin * 0.7
+    // data.rates es un objeto { "2025-01-01": { "EURXAU": 0.0003 }, ... }
+    const claveMetalBase = `EUR${metal}`
 
-    const dias = Math.floor((hoy - fechaInicio) / (1000 * 60 * 60 * 24))
-    const datos = []
-
-    for (let i = 0; i <= dias; i++) {
-      const fecha = new Date(fechaInicio)
-      fecha.setDate(fecha.getDate() + i)
-      if (fecha.getDay() === 0 || fecha.getDay() === 6) continue
-
-      const progreso = i / dias
-      const variacion = (Math.random() - 0.48) * (precioFin * 0.01)
-      const precio = precioIni + (precioFin - precioIni) * progreso + variacion
-
-      datos.push({
-        fecha: formatFecha(fecha),
-        precio: Math.round(precio * 100) / 100,
+    const datos = Object.entries(data.rates)
+      .map(([fecha, valores]) => {
+        const precio = valores[claveMetalBase]
+        return {
+          fecha,
+          precio: precio ? Math.round(precio * 100) / 100 : null,
+        }
       })
-    }
+      .filter((d) => d.precio !== null)
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 
     cache[cacheKey] = { datos, timestamp: ahora }
     res.json(datos)
   } catch (error) {
-    console.error(error)
+    console.error('Error histórico:', error.message)
     res.status(500).json({ error: error.message })
   }
 })
