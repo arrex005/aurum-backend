@@ -14,6 +14,7 @@ model Producto {
   tipo      String
   peso      String
   pureza    String
+  pesoGramos Float    @default(0)
   precio    Float
   imagen    String?
   destacado Boolean  @default(false)

@@ -6,24 +6,31 @@ let ultimaActualizacion = null
 
 async function obtenerPrecios() {
   const ahora = Date.now()
-  // Caché de 8 horas
   if (cache && ultimaActualizacion && ahora - ultimaActualizacion < 8 * 60 * 60 * 1000) {
     return cache
   }
 
   const apiKey = process.env.METALPRICE_API_KEY
 
-  // Endpoint "change": da precio actual + variación respecto a ayer
-  const url = `https://api.metalpriceapi.com/v1/change?api_key=${apiKey}&base=EUR&currencies=XAU,XAG,XPT,XPD&date_type=recent`
+  // 1. Precio actual (siempre disponible)
+  const urlLatest = `https://api.metalpriceapi.com/v1/latest?api_key=${apiKey}&base=EUR&currencies=XAU,XAG,XPT,XPD`
+  const resLatest = await fetch(urlLatest)
+  const dataLatest = await resLatest.json()
 
-  const res = await fetch(url)
-  const data = await res.json()
-
-  if (!data.success || !data.rates) {
-    throw new Error(data.error?.info || 'Error al obtener precios')
+  if (!dataLatest.success || !dataLatest.rates) {
+    throw new Error(dataLatest.error?.info || 'Error al obtener precios')
   }
 
-  const rates = data.rates
+  // 2. Precio de ayer (para calcular variación)
+  const ayer = new Date()
+  ayer.setDate(ayer.getDate() - 1)
+  const fechaAyer = ayer.toISOString().split('T')[0]
+  const urlAyer = `https://api.metalpriceapi.com/v1/${fechaAyer}?api_key=${apiKey}&base=EUR&currencies=XAU,XAG,XPT,XPD`
+  const resAyer = await fetch(urlAyer)
+  const dataAyer = await resAyer.json()
+
+  const ratesHoy = dataLatest.rates
+  const ratesAyer = dataAyer.rates || {}
 
   const metales = [
     { nombre: 'Oro', clave: 'XAU' },
@@ -33,16 +40,20 @@ async function obtenerPrecios() {
   ]
 
   const resultados = metales.map((m) => {
-    const info = rates[m.clave]
-    // end_rate viene como onzas por EUR, hay que invertir para EUR por onza
-    const precioEur = info?.end_rate ? 1 / info.end_rate : null
-    const precioAyer = info?.start_rate ? 1 / info.start_rate : null
-    const variacion = precioEur && precioAyer ? precioEur - precioAyer : 0
-    const variacionPct = precioAyer ? ((precioEur - precioAyer) / precioAyer) * 100 : 0
+    const claveBase = `EUR${m.clave}`
+    const precioHoy = ratesHoy[claveBase] || null
+    const precioAyer = ratesAyer[claveBase] || null
+
+    let variacion = 0
+    let variacionPct = 0
+    if (precioHoy && precioAyer) {
+      variacion = precioHoy - precioAyer
+      variacionPct = ((precioHoy - precioAyer) / precioAyer) * 100
+    }
 
     return {
       nombre: m.nombre,
-      precio: precioEur,
+      precio: precioHoy,
       variacion: variacion,
       variacionPct: variacionPct,
     }
