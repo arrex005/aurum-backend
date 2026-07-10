@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
+const clienteOpcional = require('../middleware/clienteOpcional')
 
 // Reutilizamos la lógica de precios para tener el precio del gramo
 let cachePrecios = null
@@ -41,7 +42,7 @@ function calcularPrecio(producto, preciosGramo) {
   return Math.round(producto.pesoGramos * precioGramo * 100) / 100
 }
 
-router.get('/', async (req, res) => {
+router.get('/', clienteOpcional, async (req, res) => {
   try {
     const { metal, tipo } = req.query
     const filtros = {}
@@ -55,10 +56,29 @@ router.get('/', async (req, res) => {
 
     const preciosGramo = await obtenerPreciosGramo()
 
-    const productosConPrecio = productos.map((p) => ({
-      ...p,
-      precio: calcularPrecio(p, preciosGramo) || p.precio, // si falla el cálculo, usa el precio guardado
-    }))
+    const productosConPrecio = productos.map((p) => {
+      const base = {
+        id: p.id,
+        nombre: p.nombre,
+        metal: p.metal,
+        tipo: p.tipo,
+        peso: p.peso,
+        pesoGramos: p.pesoGramos,
+        pureza: p.pureza,
+        imagen: p.imagen,
+        destacado: p.destacado,
+        createdAt: p.createdAt,
+      }
+
+      // Solo enviamos el precio si el cliente está autenticado
+      if (req.clienteAutenticado) {
+        base.precio = calcularPrecio(p, preciosGramo) || p.precio
+      } else {
+        base.precio = null
+      }
+
+      return base
+    })
 
     res.json(productosConPrecio)
   } catch (error) {
@@ -67,15 +87,19 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', clienteOpcional, async (req, res) => {
   try {
     const producto = await prisma.producto.findUnique({
       where: { id: Number(req.params.id) }
     })
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' })
 
-    const preciosGramo = await obtenerPreciosGramo()
-    producto.precio = calcularPrecio(producto, preciosGramo) || producto.precio
+    if (req.clienteAutenticado) {
+      const preciosGramo = await obtenerPreciosGramo()
+      producto.precio = calcularPrecio(producto, preciosGramo) || producto.precio
+    } else {
+      producto.precio = null
+    }
 
     res.json(producto)
   } catch (error) {
