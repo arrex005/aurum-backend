@@ -16,7 +16,22 @@ const piedrasRouter = require('./src/routes/piedras')
 const app = express()
 const PORT = process.env.PORT || 3001
 
-app.use(cors())
+const origenesPermitidos = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_ALT,
+].filter(Boolean)
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (origenesPermitidos.includes(origin)) {
+      return callback(null, true)
+    }
+    return callback(new Error('No permitido por CORS'))
+  },
+  credentials: true,
+}))
 app.use(express.json())
 
 app.get('/', (req, res) => {
