@@ -40,11 +40,16 @@ router.get('/', async (req, res) => {
   try {
     const token = await obtenerToken()
 
-    const { forma, colorMin, quilatesMin, quilatesMax } = req.query
+    const { forma, quilatesMin, quilatesMax, pagina } = req.query
 
     const shape = forma || 'ROUND'
     const from = quilatesMin || 0.5
     const to = quilatesMax || 5.0
+
+    // Nivoda devuelve máximo 50 por consulta, y permite hasta 50.000 paginando
+    const paginaActual = Math.max(1, Number(pagina) || 1)
+    const limite = 50
+    const offset = (paginaActual - 1) * limite
 
     const query = `
       query {
@@ -55,8 +60,8 @@ router.get('/', async (req, res) => {
             sizes: [{ from: ${from}, to: ${to} }],
             has_image: true
           },
-          offset: 0,
-          limit: 30,
+          offset: ${offset},
+          limit: ${limite},
           order: { type: price, direction: ASC }
         ) {
           items {
@@ -101,9 +106,22 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'Error en la query', detalles: data.errors })
     }
 
-    res.json(data?.data?.diamonds_by_query?.items || [])
+    const resultado = data?.data?.diamonds_by_query
+    const items = resultado?.items || []
+    const total = resultado?.total_count || 0
+
+    // En staging el total_count no es fiable, así que deducimos si hay más
+    // página llena = probablemente hay más resultados detrás
+    const hayMas = items.length === limite && offset + limite < 50000
+
+    res.json({
+      items,
+      total,
+      pagina: paginaActual,
+      hayMas,
+    })
   } catch (error) {
-    console.error('Error Nivoda completo:', error)
+    console.error('Error Nivoda:', error)
     res.status(500).json({ error: error.message })
   }
 })
