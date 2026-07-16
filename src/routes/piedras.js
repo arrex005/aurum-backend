@@ -1,5 +1,7 @@
 const express = require('express')
 const router = express.Router()
+const clienteOpcional = require('../middleware/clienteOpcional')
+
 
 let nivodaToken = null
 let tokenExpira = null
@@ -36,7 +38,7 @@ async function obtenerToken() {
   return token
 }
 
-router.get('/', async (req, res) => {
+router.get('/', clienteOpcional, async (req, res) => {
   try {
     const token = await obtenerToken()
 
@@ -107,11 +109,17 @@ router.get('/', async (req, res) => {
     }
 
     const resultado = data?.data?.diamonds_by_query
-    const items = resultado?.items || []
+    const itemsCrudos = resultado?.items || []
     const total = resultado?.total_count || 0
 
+    // Solo enviamos el precio si el cliente está autenticado
+    const items = itemsCrudos.map((item) => ({
+      ...item,
+      price: req.clienteAutenticado ? item.price : null,
+      discount: req.clienteAutenticado ? item.discount : null,
+    }))
+
     // En staging el total_count no es fiable, así que deducimos si hay más
-    // página llena = probablemente hay más resultados detrás
     const hayMas = items.length === limite && offset + limite < 50000
 
     res.json({
@@ -125,7 +133,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
-router.get('/:id', async (req, res) => {
+router.get('/:id', clienteOpcional, async (req, res) => {
   try {
     const token = await obtenerToken()
     const diamanteId = req.params.id.replace('DIAMOND/', '')
@@ -188,6 +196,12 @@ router.get('/:id', async (req, res) => {
 
     if (!diamante) {
       return res.status(404).json({ error: 'Diamante no encontrado' })
+    }
+
+    // Solo enviamos el precio si el cliente está autenticado
+    if (!req.clienteAutenticado) {
+      diamante.price = null
+      diamante.discount = null
     }
 
     res.json(diamante)
