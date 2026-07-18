@@ -19,10 +19,16 @@ router.post('/registro',
       .isLength({ min: 2 }).withMessage('Los apellidos son demasiado cortos')
       .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/).withMessage('Los apellidos solo pueden contener letras'),
     body('email').trim().isEmail().withMessage('Email no válido').normalizeEmail(),
-    body('telefono').trim().matches(/^[67][0-9]{8}$/).withMessage('El teléfono debe ser un móvil español válido (9 dígitos, empieza por 6 o 7)'),
+    body('telefono').trim().optional({ checkFalsy: true }).matches(/^[67][0-9]{8}$/).withMessage('Si indicas teléfono, debe ser un móvil español válido (9 dígitos, empieza por 6 o 7)'),
     body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
   ],
-  async (req, res) => {
+async (req, res) => {
+    const errores = validationResult(req)
+    if (!errores.isEmpty()) {
+      return res.status(400).json({ error: errores.array()[0].msg })
+    }
+
+    try {
       const { email, password, nombre, apellidos, telefono } = req.body
 
       const existente = await prisma.cliente.findUnique({ where: { email } })

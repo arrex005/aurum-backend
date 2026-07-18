@@ -3,6 +3,7 @@ const router = express.Router()
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 const verificarToken = require('../middleware/verificarToken')
+const { enviarAvisoAprobacion } = require('../utils/enviarEmail')
 
 router.use(verificarToken)
 
@@ -59,6 +60,15 @@ router.patch('/clientes/:id/aprobar', async (req, res) => {
       where: { id: Number(req.params.id) },
       data: { aprobado: true }
     })
+
+    // Avisamos al cliente por email de que ya puede entrar
+    try {
+      await enviarAvisoAprobacion(cliente.email, cliente.nombre)
+    } catch (errorEmail) {
+      console.error('Error enviando email de aprobación:', errorEmail.message)
+      // No bloqueamos la aprobación si el email falla
+    }
+
     res.json(cliente)
   } catch (error) {
     res.status(500).json({ error: 'Error al aprobar cliente' })
