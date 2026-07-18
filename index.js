@@ -15,12 +15,18 @@ const clientesRouter = require('./src/routes/clientes')
 const piedrasRouter = require('./src/routes/piedras')
 const app = express()
 const PORT = process.env.PORT || 3001
+const helmet = require('helmet')
+
+
 
 const origenesPermitidos = [
   'http://localhost:5173',
   process.env.FRONTEND_URL,
   process.env.FRONTEND_URL_ALT,
 ].filter(Boolean)
+
+app.use(helmet())
+
 
 app.use(cors({
   origin: (origin, callback) => {
