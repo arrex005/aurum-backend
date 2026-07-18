@@ -126,4 +126,40 @@ router.get('/perfil', verificarCliente, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener perfil' })
   }
 })
+router.post('/verificar', async (req, res) => {
+  try {
+    const { email, codigo } = req.body
+
+    const cliente = await prisma.cliente.findUnique({ where: { email } })
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' })
+    }
+
+    if (cliente.emailVerificado) {
+      return res.status(400).json({ error: 'Este email ya está verificado' })
+    }
+
+    if (cliente.codigoVerificacion !== codigo) {
+      return res.status(400).json({ error: 'Código incorrecto' })
+    }
+
+    if (new Date() > cliente.codigoExpira) {
+      return res.status(400).json({ error: 'El código ha caducado. Solicita uno nuevo.' })
+    }
+
+    await prisma.cliente.update({
+      where: { email },
+      data: {
+        emailVerificado: true,
+        codigoVerificacion: null,
+        codigoExpira: null,
+      }
+    })
+
+    res.json({ mensaje: 'Email verificado correctamente. Tu cuenta está pendiente de aprobación.' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Error al verificar' })
+  }
+})
 module.exports = router
