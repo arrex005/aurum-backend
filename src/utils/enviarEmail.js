@@ -72,4 +72,4 @@ async function enviarAvisoAprobacion(email, nombre) {
 
   return await respuesta.json()
 }
-module.exports = { enviarCodigoVerificacion }
+module.exports = { enviarCodigoVerificacion, enviarAvisoAprobacion  }

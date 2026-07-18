@@ -91,6 +91,10 @@ router.post('/login', loginLimiter , async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' })
     }
 
+    if (!cliente.emailVerificado) {
+      return res.status(403).json({ error: 'Debes verificar tu email antes de acceder' })
+    }
+
     if (!cliente.aprobado) {
       return res.status(403).json({ error: 'Tu cuenta todavía no ha sido aprobada' })
     }
