@@ -42,11 +42,16 @@ router.get('/', clienteOpcional, async (req, res) => {
   try {
     const token = await obtenerToken()
 
-    const { forma, quilatesMin, quilatesMax, pagina } = req.query
+    const { forma, quilatesMin, quilatesMax, color, pureza, talla, pagina } = req.query
 
     const shape = forma || 'ROUND'
     const from = quilatesMin || 0.5
     const to = quilatesMax || 5.0
+
+    // Filtros opcionales: solo se añaden a la query si vienen
+    const filtroColor = color ? `color: [${color}],` : ''
+    const filtroPureza = pureza ? `clarity: [${pureza}],` : ''
+    const filtroTalla = talla ? `cut: [${talla}],` : ''
 
     // Nivoda devuelve máximo 50 por consulta, y permite hasta 50.000 paginando
     const paginaActual = Math.max(1, Number(pagina) || 1)
@@ -60,6 +65,9 @@ router.get('/', clienteOpcional, async (req, res) => {
             labgrown: false,
             shapes: ["${shape}"],
             sizes: [{ from: ${from}, to: ${to} }],
+            ${filtroColor}
+            ${filtroPureza}
+            ${filtroTalla}
             has_image: true
           },
           offset: ${offset},
@@ -112,7 +120,7 @@ router.get('/', clienteOpcional, async (req, res) => {
     const itemsCrudos = resultado?.items || []
     const total = resultado?.total_count || 0
 
-    // Solo enviamos el precio si el cliente está autenticado
+// Solo enviamos el precio si el cliente está autenticado
     const items = itemsCrudos.map((item) => ({
       ...item,
       price: req.clienteAutenticado ? item.price : null,
