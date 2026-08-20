@@ -159,4 +159,36 @@ router.post('/verificar', async (req, res) => {
     res.status(500).json({ error: 'Error al verificar' })
   }
 })
+router.patch('/cambiar-password', verificarCliente, async (req, res) => {
+  try {
+    const { passwordActual, passwordNueva } = req.body
+
+    if (!passwordNueva || passwordNueva.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' })
+    }
+
+    const cliente = await prisma.cliente.findUnique({ where: { id: req.cliente.id } })
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' })
+    }
+
+    // Comprobamos que la contraseña actual es correcta
+    const passwordCorrecta = await bcrypt.compare(passwordActual, cliente.password)
+    if (!passwordCorrecta) {
+      return res.status(400).json({ error: 'La contraseña actual no es correcta' })
+    }
+
+    // Guardamos la nueva hasheada
+    const passwordHash = await bcrypt.hash(passwordNueva, 10)
+    await prisma.cliente.update({
+      where: { id: cliente.id },
+      data: { password: passwordHash },
+    })
+
+    res.json({ mensaje: 'Contraseña actualizada correctamente' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Error al cambiar la contraseña' })
+  }
+})
 module.exports = router
